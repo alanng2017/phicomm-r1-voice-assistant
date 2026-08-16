@@ -1,0 +1,49 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.idea/
+env/
+venv/
+.venv/
+.venv-workers/
+python_modules/
+pip-log.txt
+pip-delete-this-directory.txt
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE integration
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cloudflare Wrangler
+.wrangler/
+wrangler.toml.bak
+
+# Local environment
+.uenv
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+out/

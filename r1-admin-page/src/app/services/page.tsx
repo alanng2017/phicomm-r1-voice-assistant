@@ -1,0 +1,844 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Cloud, Music, BookOpen, Newspaper, Save, CheckCircle2, AlertCircle, Info, Settings2, Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { useMusic } from '@/components/MusicContext';
+import { ConnectionMask } from '@/components/ConnectionMask';
+import { PageLayout } from '@/components/layout';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
+
+// ─── Weather Config Section ────────────────────────────────────────────────────
+
+function WeatherConfigCard() {
+  const { weatherConfig, queryWeatherConfig, saveWeatherConfig } = useMusic();
+
+  const [provider, setProvider] = useState('qweather');
+  const [endpoint, setEndpoint] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
+  const [endpointError, setEndpointError] = useState('');
+
+  useEffect(() => {
+    queryWeatherConfig();
+  }, []);
+
+  useEffect(() => {
+    if (weatherConfig) {
+      if (weatherConfig.provider) setProvider(weatherConfig.provider);
+      if (weatherConfig.endpoint) setEndpoint(weatherConfig.endpoint);
+      if (weatherConfig.apiKey) setApiKey(weatherConfig.apiKey);
+    }
+  }, [weatherConfig]);
+
+  const handleEndpointChange = (val: string) => {
+    setEndpoint(val);
+    setIsSaved(false);
+    if (val && !val.startsWith('https')) {
+      setEndpointError('Endpoint 必须以 https 开头');
+    } else {
+      setEndpointError('');
+    }
+  };
+
+  const handleSave = () => {
+    if (!endpoint.startsWith('https')) {
+      setEndpointError('Endpoint 必须以 https 开头');
+      return;
+    }
+    saveWeatherConfig({ provider, endpoint, apiKey });
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  const isValid = endpoint.startsWith('https') && apiKey.trim().length > 0;
+
+  return (
+    <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl">
+      <CardHeader className="p-8 pb-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-sky-400" />
+              天气服务配置
+            </CardTitle>
+            <CardDescription className="text-neutral-500">
+              配置天气数据提供商及鉴权信息，AI 将使用此配置查询实时天气
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-8 pt-4 space-y-6">
+        {/* Provider Select */}
+        <div className="space-y-2">
+          <Label htmlFor="weather-provider" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+            天气服务商
+          </Label>
+          <Select value={provider} onValueChange={(v) => { setProvider(v); setIsSaved(false); }}>
+            <SelectTrigger
+              id="weather-provider"
+              className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+            >
+              <SelectValue placeholder="选择天气服务商" />
+            </SelectTrigger>
+            <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+              <SelectItem value="qweather">和风天气 (QWeather)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Endpoint */}
+        <div className="space-y-2">
+          <Label htmlFor="weather-endpoint" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+            API Endpoint
+          </Label>
+          <Input
+            id="weather-endpoint"
+            placeholder="https://api.qweather.com"
+            value={endpoint}
+            onChange={(e) => handleEndpointChange(e.target.value)}
+            className={`bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white ${endpointError ? 'border-red-500/60' : ''}`}
+          />
+          {endpointError ? (
+            <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+              <AlertCircle className="w-3 h-3" /> {endpointError}
+            </p>
+          ) : (
+            <p className="text-xs text-neutral-600 mt-1">
+              必须以 <code className="text-sky-400 font-mono">https</code> 开头，不需要末尾斜杠
+            </p>
+          )}
+        </div>
+
+        {/* API Key */}
+        <div className="space-y-2">
+          <Label htmlFor="weather-apikey" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+            API Key
+          </Label>
+          <Input
+            id="weather-apikey"
+            type="password"
+            placeholder="your-qweather-api-key"
+            value={apiKey}
+            onChange={(e) => { setApiKey(e.target.value); setIsSaved(false); }}
+            className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+          />
+        </div>
+
+        {/* Info Box */}
+        <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/15 text-neutral-400 text-[11px] leading-relaxed space-y-1">
+          <div className="flex items-center gap-2 text-sky-400 font-bold mb-1">
+            <Info className="w-3 h-3" />
+            配置说明
+          </div>
+          <p>前往 <a href="https://dev.qweather.com" target="_blank" rel="noopener noreferrer" className="text-sky-400 underline">dev.qweather.com</a> 注册并获取 API Key。</p>
+        </div>
+
+        {/* Save Button */}
+        <Button
+          className={`w-full h-14 rounded-3xl font-black text-sm uppercase tracking-widest transition-all ${isValid
+            ? 'bg-sky-500 hover:bg-sky-600 text-white shadow-[0_10px_30px_rgba(14,165,233,0.3)]'
+            : 'bg-neutral-800 opacity-40 cursor-not-allowed text-neutral-500'
+            }`}
+          disabled={!isValid}
+          onClick={handleSave}
+        >
+          {isSaved ? (
+            <><CheckCircle2 className="w-5 h-5 mr-2" /> 已保存</>
+          ) : (
+            <><Save className="w-5 h-5 mr-2" /> 保存天气配置</>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Music Service Config Section ─────────────────────────────────────────────
+
+function MusicServiceCard({ aiType }: { aiType?: number | null }) {
+  const { musicServiceConfig, queryMusicServiceConfig, saveMusicServiceConfig } = useMusic();
+
+  const [provider, setProvider] = useState('');
+  const [endpoint, setEndpoint] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
+
+  const isLocalMode = aiType === 1;
+
+  useEffect(() => {
+    queryMusicServiceConfig();
+  }, []);
+
+  useEffect(() => {
+    if (musicServiceConfig) {
+      if (musicServiceConfig.provider) setProvider(musicServiceConfig.provider);
+      if (musicServiceConfig.endpoint) setEndpoint(musicServiceConfig.endpoint);
+    }
+  }, [musicServiceConfig]);
+
+  const handleSave = () => {
+    if (isLocalMode) {
+      saveMusicServiceConfig({ endpoint, provider });
+    } else {
+      saveMusicServiceConfig({ provider, endpoint });
+    }
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  return (
+    <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl">
+      <CardHeader className="p-8 pb-4">
+        <div className="space-y-1">
+          <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+            <Music className="w-5 h-5 text-violet-400" />
+            音乐服务配置
+          </CardTitle>
+          <CardDescription className="text-neutral-500">
+            {isLocalMode ? '配置本地音乐服务端点地址' : '选择 AI 播放音乐时使用的数据来源，影响歌曲搜索与播放质量'}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-8 pt-4 space-y-6">
+        {isLocalMode ? (
+          <div className="space-y-2">
+            <Label htmlFor="music-endpoint" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+              端点地址 (Endpoint)
+            </Label>
+            <Input
+              id="music-endpoint"
+              placeholder="http://192.168.x.x:port"
+              value={endpoint}
+              onChange={(e) => { setEndpoint(e.target.value); setIsSaved(false); }}
+              className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+            />
+            <p className="text-xs text-neutral-600 mt-1 space-y-1">
+              <span className="block text-neutral-500">可用端点：</span>
+              <button type="button" onClick={() => { setEndpoint('https://media.thd.dpdns.org/music/v2'); setIsSaved(false); }} className="block text-blue-400 font-mono hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                默认 → https://media.thd.dpdns.org/music/v2
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://yt.huan.dedyn.io/youtube/music/v2'); setIsSaved(false); }} className="block text-cyan-400 font-mono hover:text-cyan-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                youtube → https://yt.huan.dedyn.io/youtube/music/v2
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://bilibili.gptclub.top/music'); setIsSaved(false); }} className="block text-violet-400 font-mono hover:text-violet-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                bilibili → https://bilibili.gptclub.top/music
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://media.air1.bot.cd/music/v3/kw'); setIsSaved(false); }} className="block text-emerald-400 font-mono hover:text-emerald-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                酷我 → https://media.air1.bot.cd/music/v3/kw
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://media.air1.bot.cd/music/v3/tx'); setIsSaved(false); }} className="block text-rose-400 font-mono hover:text-rose-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                QQ → https://media.air1.bot.cd/music/v3/tx
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://media.air1.bot.cd/music/v3/wy'); setIsSaved(false); }} className="block text-orange-400 font-mono hover:text-orange-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                网易 → https://media.air1.bot.cd/music/v3/wy
+              </button>
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="music-provider" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                音乐来源
+              </Label>
+              <Select value={provider} onValueChange={(v) => { setProvider(v); setIsSaved(false); }}>
+                <SelectTrigger
+                  id="music-provider"
+                  className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+                >
+                  <SelectValue placeholder="选择音乐来源" />
+                </SelectTrigger>
+                <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+                  <SelectItem value="default">🎵 默认 (Default)</SelectItem>
+                  <SelectItem value="youtube">▶️ YouTube Music</SelectItem>
+                  <SelectItem value="bilibili">📺 哔哩哔哩 (Bilibili)</SelectItem>
+                  <SelectItem value="kw">🎤 酷我 (KuWo)</SelectItem>
+                  <SelectItem value="tx">🎧 腾讯 (Tencent)</SelectItem>
+                  <SelectItem value="wy">📻 网易云 (NetEase)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-neutral-600 mt-1">
+                选择后，AI 响应音乐请求时将优先使用该来源
+              </p>
+            </div>
+
+            {musicServiceConfig && (
+              <div className="p-3 rounded-2xl bg-violet-500/5 border border-violet-500/15 text-[11px] text-neutral-400">
+                <span className="text-violet-400 font-bold">当前配置：</span>{' '}
+                {musicServiceConfig.provider === 'default' ? '默认' :
+                 musicServiceConfig.provider === 'youtube' ? 'YouTube Music' :
+                 musicServiceConfig.provider === 'bilibili' ? '哔哩哔哩' :
+                 musicServiceConfig.provider === 'kw' ? '酷我' :
+                 musicServiceConfig.provider === 'tx' ? 'QQ' :
+                 musicServiceConfig.provider === 'wy' ? '网易云' :
+                 musicServiceConfig.provider}
+              </div>
+            )}
+          </>
+        )}
+
+        <Button
+          className="w-full h-14 rounded-3xl font-black text-sm uppercase tracking-widest transition-all bg-violet-600 hover:bg-violet-700 text-white shadow-[0_10px_30px_rgba(139,92,246,0.3)]"
+          onClick={handleSave}
+        >
+          {isSaved ? (
+            <><CheckCircle2 className="w-5 h-5 mr-2" /> 已保存</>
+          ) : (
+            <><Save className="w-5 h-5 mr-2" /> 保存音乐配置</>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Story Service Config Section ─────────────────────────────────────────────
+
+function StoryServiceCard({ aiType }: { aiType?: number | null }) {
+  const { storyServiceConfig, queryStoryServiceConfig, saveStoryServiceConfig } = useMusic();
+
+  const [provider, setProvider] = useState('');
+  const [endpoint, setEndpoint] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
+
+  const isLocalMode = aiType === 1;
+
+  useEffect(() => {
+    queryStoryServiceConfig();
+  }, []);
+
+  useEffect(() => {
+    if (storyServiceConfig) {
+      if (storyServiceConfig.provider) setProvider(storyServiceConfig.provider);
+      if (storyServiceConfig.endpoint) setEndpoint(storyServiceConfig.endpoint);
+    }
+  }, [storyServiceConfig]);
+
+  const handleSave = () => {
+    if (isLocalMode) {
+      saveStoryServiceConfig({ endpoint, provider });
+    } else {
+      saveStoryServiceConfig({ provider, endpoint });
+    }
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  return (
+    <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl">
+      <CardHeader className="p-8 pb-4">
+        <div className="space-y-1">
+          <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-amber-400" />
+            故事服务配置
+          </CardTitle>
+          <CardDescription className="text-neutral-500">
+            {isLocalMode ? '配置本地故事服务端点地址' : '选择 AI 播放故事或有声读物时使用的数据来源'}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-8 pt-4 space-y-6">
+        {isLocalMode ? (
+          <div className="space-y-2">
+            <Label htmlFor="story-endpoint" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+              端点地址 (Endpoint)
+            </Label>
+            <Input
+              id="story-endpoint"
+              placeholder="http://192.168.x.x:port"
+              value={endpoint}
+              onChange={(e) => { setEndpoint(e.target.value); setIsSaved(false); }}
+              className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+            />
+            <p className="text-xs text-neutral-600 mt-1 space-y-1">
+              <span className="block text-neutral-500">可用端点：</span>
+              <button type="button" onClick={() => { setEndpoint('https://yt.huan.dedyn.io/youtube/audio/v2'); setIsSaved(false); }} className="block text-blue-400 font-mono hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                youtube → https://yt.huan.dedyn.io/youtube/audio/v2
+              </button>
+              <button type="button" onClick={() => { setEndpoint('https://bilibili.gptclub.top/music'); setIsSaved(false); }} className="block text-violet-400 font-mono hover:text-violet-300 underline underline-offset-2 transition-colors cursor-pointer text-[11px]">
+                bilibili → https://bilibili.gptclub.top/music
+              </button>
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="story-provider" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                故事来源
+              </Label>
+              <Select value={provider} onValueChange={(v) => { setProvider(v); setIsSaved(false); }}>
+                <SelectTrigger
+                  id="story-provider"
+                  className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+                >
+                  <SelectValue placeholder="选择故事来源" />
+                </SelectTrigger>
+                <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+                  <SelectItem value="youtube">▶️ YouTube</SelectItem>
+                  <SelectItem value="bilibili">📺 哔哩哔哩 (Bilibili)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-neutral-600 mt-1">
+                选择后，AI 响应故事请求时将优先使用该来源
+              </p>
+            </div>
+
+            {storyServiceConfig && (
+              <div className="p-3 rounded-2xl bg-amber-500/5 border border-amber-500/15 text-[11px] text-neutral-400">
+                <span className="text-amber-400 font-bold">当前配置：</span>{' '}
+                {storyServiceConfig.provider === 'youtube' ? 'YouTube' :
+                 storyServiceConfig.provider === 'bilibili' ? '哔哩哔哩' :
+                 storyServiceConfig.provider}
+              </div>
+            )}
+          </>
+        )}
+
+        <Button
+          className="w-full h-14 rounded-3xl font-black text-sm uppercase tracking-widest transition-all bg-amber-500 hover:bg-amber-600 text-black shadow-[0_10px_30px_rgba(245,158,11,0.3)]"
+          onClick={handleSave}
+        >
+          {isSaved ? (
+            <><CheckCircle2 className="w-5 h-5 mr-2" /> 已保存</>
+          ) : (
+            <><Save className="w-5 h-5 mr-2" /> 保存故事配置</>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── News Service Config Section ──────────────────────────────────────────────
+
+interface NewsProvider {
+  provider: string;
+  endpoint?: string;
+  chanId?: string;
+}
+
+function NewsServiceCard() {
+  const [baseUrl, setBaseUrl] = useState('');
+  const [adminToken, setAdminToken] = useState('');
+  const [providers, setProviders] = useState<NewsProvider[]>([]);
+  const [newsConfig, setNewsConfig] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+
+  const [newName, setNewName] = useState('');
+  const [newMode, setNewMode] = useState<'chanId' | 'endpoint'>('chanId');
+  const [newChanId, setNewChanId] = useState('');
+  const [newEndpoint, setNewEndpoint] = useState('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('r1_news_admin');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.baseUrl) setBaseUrl(parsed.baseUrl);
+        if (parsed.adminToken) setAdminToken(parsed.adminToken);
+      } catch (e) {}
+    }
+  }, []);
+
+  const persistConn = () => {
+    localStorage.setItem('r1_news_admin', JSON.stringify({ baseUrl, adminToken }));
+  };
+
+  const apiUrl = (path: string) => `${baseUrl.replace(/\/+$/, '')}${path}`;
+
+  const request = async (path: string, init?: RequestInit) => {
+    const resp = await fetch(apiUrl(path), {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-r1-admin-token': adminToken,
+        ...(init?.headers || {}),
+      },
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`);
+    }
+    return data;
+  };
+
+  const loadConfig = async () => {
+    if (!baseUrl.startsWith('https')) {
+      setMessage({ text: 'Worker 地址必须以 https 开头', error: true });
+      return;
+    }
+    persistConn();
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      const data = await request('/r1/admin/news');
+      setProviders(Array.isArray(data.providers) ? data.providers : []);
+      setNewsConfig(data.newsConfig || {});
+      setMessage({ text: '已加载', error: false });
+    } catch (e: any) {
+      setMessage({ text: `加载失败：${e.message}`, error: true });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const doAction = async (body: any, okText: string) => {
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      await request('/r1/admin/news', { method: 'POST', body: JSON.stringify(body) });
+      setMessage({ text: okText, error: false });
+      const data = await request('/r1/admin/news');
+      setProviders(Array.isArray(data.providers) ? data.providers : []);
+      setNewsConfig(data.newsConfig || {});
+    } catch (e: any) {
+      setMessage({ text: `操作失败：${e.message}`, error: true });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdd = () => {
+    const provider = newName.trim();
+    if (!provider) {
+      setMessage({ text: '请填写新闻源名称', error: true });
+      return;
+    }
+    if (newMode === 'chanId') {
+      if (!newChanId.trim()) {
+        setMessage({ text: '请填写央广频道 chanId', error: true });
+        return;
+      }
+      doAction({ action: 'add', provider, chanId: newChanId.trim() }, `已添加 ${provider}`);
+    } else {
+      if (!newEndpoint.startsWith('https')) {
+        setMessage({ text: 'Endpoint 必须以 https 开头', error: true });
+        return;
+      }
+      doAction({ action: 'add', provider, endpoint: newEndpoint.trim() }, `已添加 ${provider}`);
+    }
+  };
+
+  return (
+    <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl">
+      <CardHeader className="p-8 pb-4">
+        <div className="space-y-1">
+          <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+            <Newspaper className="w-5 h-5 text-emerald-400" />
+            新闻源配置
+          </CardTitle>
+          <CardDescription className="text-neutral-500">
+            管理多个新闻源（央广频道或自定义媒体服务），语音说“播放新闻”用默认源，“播放XX新闻”用指定源
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="p-8 pt-4 space-y-6">
+        {/* Connection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="news-baseurl" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+              r1-py Worker 地址
+            </Label>
+            <Input
+              id="news-baseurl"
+              placeholder="https://your-worker.workers.dev"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="news-token" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+              ADMIN_TOKEN
+            </Label>
+            <Input
+              id="news-token"
+              type="password"
+              placeholder="wrangler secret put ADMIN_TOKEN 设置的密钥"
+              value={adminToken}
+              onChange={(e) => setAdminToken(e.target.value)}
+              className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+            />
+          </div>
+        </div>
+        <Button
+          className="w-full h-12 rounded-2xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={loadConfig}
+          disabled={isLoading}
+        >
+          {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+          加载新闻源配置
+        </Button>
+
+        {message && (
+          <p className={`text-xs flex items-center gap-1 ${message.error ? 'text-red-400' : 'text-emerald-400'}`}>
+            <AlertCircle className="w-3 h-3" /> {message.text}
+          </p>
+        )}
+
+        {providers.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-neutral-400">
+              已配置新闻源
+            </Label>
+            <div className="space-y-2">
+              {providers.map((p) => (
+                <div key={p.provider} className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
+                  <div className="min-w-0">
+                    <div className="text-white text-sm font-bold">{p.provider}</div>
+                    <div className="text-[11px] text-neutral-500 font-mono truncate">
+                      {p.endpoint ? `endpoint: ${p.endpoint}` : `央广频道 chanId: ${p.chanId}`}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {newsConfig?.provider === p.provider && (
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">默认</span>
+                    )}
+                    {p.endpoint && (
+                      <button
+                        type="button"
+                        onClick={() => doAction({ action: 'set_default', provider: p.provider, endpoint: p.endpoint }, `已将 ${p.provider} 设为默认`)}
+                        className="text-[11px] px-2 py-1 rounded-full bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700"
+                      >
+                        设为默认
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => doAction({ action: 'remove', provider: p.provider }, `已删除 ${p.provider}`)}
+                      className="text-red-400 hover:text-red-300 p-1"
+                      title="删除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {newsConfig?.endpoint && (
+              <button
+                type="button"
+                onClick={() => doAction({ action: 'clear_default' }, '已清除默认新闻源')}
+                className="text-[11px] text-neutral-500 hover:text-neutral-300 underline underline-offset-2"
+              >
+                清除默认新闻源（当前：{newsConfig.provider || newsConfig.endpoint}）
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Add new provider */}
+        <div className="space-y-4 p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/15">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+            <Plus className="w-4 h-4" /> 添加新闻源
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="news-name" className="text-xs font-black uppercase tracking-widest text-neutral-400">名称</Label>
+              <Input
+                id="news-name"
+                placeholder="如 经济之声 / 澎湃新闻"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest text-neutral-400">类型</Label>
+              <Select value={newMode} onValueChange={(v) => setNewMode(v as 'chanId' | 'endpoint')}>
+                <SelectTrigger className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+                  <SelectItem value="chanId">央广频道 (chanId)</SelectItem>
+                  <SelectItem value="endpoint">自定义服务 (endpoint)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="news-value" className="text-xs font-black uppercase tracking-widest text-neutral-400">
+                {newMode === 'chanId' ? 'chanId' : 'Endpoint'}
+              </Label>
+              <Input
+                id="news-value"
+                placeholder={newMode === 'chanId' ? '如 64 (中国之声)' : 'https://your-news-service'}
+                value={newMode === 'chanId' ? newChanId : newEndpoint}
+                onChange={(e) => newMode === 'chanId' ? setNewChanId(e.target.value) : setNewEndpoint(e.target.value)}
+                className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+              />
+            </div>
+          </div>
+          <Button
+            className="w-full h-12 rounded-2xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={handleAdd}
+            disabled={isLoading}
+          >
+            <Plus className="w-4 h-4 mr-2" /> 添加
+          </Button>
+          <p className="text-[11px] text-neutral-500 leading-relaxed">
+            endpoint 型服务需实现 <code className="text-emerald-400 font-mono">GET {`{endpoint}`}/search?keyword=新闻</code>,
+            返回 <code className="text-emerald-400 font-mono">{`{"count":N,"musicinfo":[{"id","title","artist","url"}]}`}</code>,url 为可直接播放的音频。
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type Tab = 'weather' | 'music' | 'story' | 'news';
+
+export default function ServicesPage() {
+  const { isConnected, ip, isAiEnabled, aiConfig, queryAiConfig, connectDevice, isConnecting, protocolError, permissionRequired, grantPermission } = useMusic();
+  const [activeTab, setActiveTab] = useState<Tab>('weather');
+
+  useEffect(() => {
+    if (isConnected) {
+      queryAiConfig();
+    }
+  }, [isConnected]);
+
+  if (!isConnected) {
+    return (
+      <PageLayout>
+        <ConnectionMask
+          isConnected={isConnected}
+          isConnecting={isConnecting}
+          ip={ip}
+          onConnect={connectDevice}
+          title="服务配置 - 设备未连接"
+          protocolError={protocolError}
+          permissionRequired={permissionRequired}
+          onGrantPermission={grantPermission}
+        />
+      </PageLayout>
+    );
+  }
+
+  // Show a loading screen until the AI configuration status is received
+  if (aiConfig === null) {
+    return (
+      <PageLayout>
+        <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4 text-neutral-500 bg-neutral-950">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+          <p className="font-medium animate-pulse">正在获取 AI 配置状态...</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // If AI is not enabled, show a premium notice page and block config
+  if (!isAiEnabled) {
+    const aiPageHref = ip ? `/ai?ip=${ip}` : '/ai';
+    return (
+      <PageLayout>
+        <div className="min-h-[80vh] flex items-center justify-center px-4 relative overflow-hidden bg-neutral-950">
+          {/* Background gradients/glows */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[100px]" />
+            <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px]" />
+          </div>
+
+          <Card className="max-w-md w-full bg-neutral-900/60 border-neutral-800/80 backdrop-blur-3xl rounded-[40px] p-8 text-center space-y-6 relative z-10 shadow-2xl">
+            <CardHeader className="p-0 pb-2 flex flex-col items-center">
+              <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-4 shadow-[0_0_30px_rgba(59,130,246,0.15)] border border-blue-500/20 animate-bounce duration-1000">
+                <Settings2 className="w-10 h-10 animate-spin-slow" />
+              </div>
+              <CardTitle className="text-3xl font-black text-white tracking-tight">AI 功能未开启</CardTitle>
+              <CardDescription className="text-neutral-400 text-sm mt-2 leading-relaxed">
+                当前音箱未启用 AI 引擎。第三方天气、音乐与故事服务配置完全依赖于 AI 的意图识别与工具调用能力。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 text-neutral-500 text-xs bg-neutral-950/40 border border-neutral-800/50 rounded-3xl p-5 leading-loose">
+              <div className="flex items-center justify-center gap-2 text-amber-500 font-bold mb-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>服务配置被锁定</span>
+              </div>
+              请先前往 <span className="text-neutral-300 font-semibold">AI 配置</span> 页面开启 AI 服务，开启后此处相关的第三方服务配置项将自动解锁。
+            </CardContent>
+            <div className="pt-2">
+              <Link href={aiPageHref}>
+                <Button className="w-full h-14 rounded-3xl font-black text-sm uppercase tracking-widest bg-blue-600 hover:bg-blue-500 text-white shadow-[0_10px_30px_rgba(59,130,246,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]">
+                  前往 AI 配置页面启用
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout>
+      <div className="max-w-4xl mx-auto py-12 px-4 space-y-8">
+        {/* Header */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sky-400 font-black uppercase tracking-widest text-xs">
+            <Settings2 className="w-4 h-4" />
+            <span>Service Configuration</span>
+          </div>
+          <h1 className="text-5xl font-black text-white tracking-tighter">服务配置</h1>
+          <p className="text-neutral-400 text-lg max-w-xl">
+            配置音箱所使用的第三方服务。AI 将使用这些配置为你提供实时信息查询能力。
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('weather')}
+            className={`px-5 py-2 rounded-full text-sm font-bold border transition-all ${
+              activeTab === 'weather'
+                ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                : 'bg-neutral-900/40 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+            }`}
+          >
+            🌤 天气
+          </button>
+          <button
+            onClick={() => setActiveTab('music')}
+            className={`px-5 py-2 rounded-full text-sm font-bold border transition-all ${
+              activeTab === 'music'
+                ? 'bg-violet-500/15 text-violet-400 border-violet-500/30'
+                : 'bg-neutral-900/40 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+            }`}
+          >
+            🎵 音乐
+          </button>
+          <button
+            onClick={() => setActiveTab('story')}
+            className={`px-5 py-2 rounded-full text-sm font-bold border transition-all ${
+              activeTab === 'story'
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                : 'bg-neutral-900/40 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+            }`}
+          >
+            📚 故事
+          </button>
+          <button
+            onClick={() => setActiveTab('news')}
+            className={`px-5 py-2 rounded-full text-sm font-bold border transition-all ${
+              activeTab === 'news'
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                : 'bg-neutral-900/40 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+            }`}
+          >
+            📰 新闻
+          </button>
+        </div>
+
+        {/* Active Card */}
+        {activeTab === 'weather' && <WeatherConfigCard />}
+        {activeTab === 'music' && <MusicServiceCard aiType={aiConfig?.aiType} />}
+        {activeTab === 'story' && <StoryServiceCard aiType={aiConfig?.aiType} />}
+        {activeTab === 'news' && <NewsServiceCard />}
+      </div>
+    </PageLayout>
+  );
+}

@@ -1,0 +1,388 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Settings, Shield, Cpu, Save, Zap, AlertCircle, CheckCircle2, Info, Loader2, ArrowLeft } from 'lucide-react';
+import { useMusic } from '@/components/MusicContext';
+import { ConnectionMask } from '@/components/ConnectionMask';
+import { PageLayout } from '@/components/layout';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
+
+export default function AiConfigPage() {
+  const { isConnected, ip, aiConfig, isAiEnabled, queryAiConfig, saveAiConfig, connectDevice, isConnecting, protocolError, permissionRequired, grantPermission } = useMusic();
+
+  const [formData, setFormData] = useState({
+    choice: 'OpenAi',
+    key: '',
+    systemPrompt: '你是一个智能音箱',
+    model: 'Qwen/Qwen3-8B',
+    endpoint: 'https://api-inference.modelscope.cn/v1',
+    extraBody: '{"enable_thinking":false}',
+    aiType: '0',
+    cdn: ''
+  });
+
+  const [enabled, setEnabled] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+
+  const isLanEndpoint = (url: string) => {
+    try {
+      const host = new URL(url).hostname;
+      return host === 'localhost' || host === '127.0.0.1' ||
+        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+        /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);
+    } catch { return false; }
+  };
+  const isLan = isLanEndpoint(formData.endpoint);
+
+  const curlPayload = {
+    model: formData.model,
+    messages: [{ role: 'user', content: '请告诉我北京今天的天气' }],
+    tools: [{
+      type: 'function',
+      function: {
+        name: 'get_current_temperature',
+        description: 'Get the current temperature for a specific location',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: { type: 'string', description: 'The city and state, e.g., San Francisco, CA' },
+            unit: { type: 'string', enum: ['Celsius', 'Fahrenheit'], description: 'The temperature unit to use. Infer this from the user\'s location.' }
+          },
+          required: ['location', 'unit']
+        }
+      }
+    }],
+    function_call: 'auto'
+  };
+  const curlCommand = `curl ${formData.endpoint}/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ${formData.key || '<your key>'}" \\\n  -d '${JSON.stringify(curlPayload)}'`;
+
+  // Sync with AI Config from device
+  useEffect(() => {
+    if (isConnected) {
+      queryAiConfig();
+    }
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (aiConfig) {
+      const validKeys = ['choice', 'key', 'systemPrompt', 'model', 'endpoint', 'extraBody', 'cdn'];
+      const filteredConfig: any = {};
+
+      validKeys.forEach(key => {
+        if (aiConfig[key] !== undefined) {
+          filteredConfig[key] = aiConfig[key];
+        }
+      });
+
+      const aiType = aiConfig.aiType !== undefined ? String(aiConfig.aiType) : '0';
+      filteredConfig.aiType = aiType;
+
+      setFormData(prev => ({
+        ...prev,
+        ...filteredConfig
+      }));
+    }
+    setEnabled(isAiEnabled);
+  }, [aiConfig, isAiEnabled]);
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setTestResult(null); // Reset test on change
+    setIsSaved(false);
+  };
+
+  const handleTest = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const response = await fetch('/api/ai-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+      setTestResult(data);
+    } catch (error: any) {
+      setTestResult({ success: false, message: `测试请求失败: ${error.message}` });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    const validKeys = ['choice', 'key', 'systemPrompt', 'model', 'endpoint', 'extraBody', 'cdn'];
+    const filteredConfig: any = {};
+    validKeys.forEach(key => {
+      filteredConfig[key] = (formData as any)[key];
+    });
+    filteredConfig.aiType = formData.aiType === '0' ? 0 : 1;
+
+    saveAiConfig(filteredConfig, enabled);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  if (!isConnected) {
+    return (
+      <PageLayout>
+        <ConnectionMask 
+          isConnected={isConnected} 
+          isConnecting={isConnecting} 
+          ip={ip} 
+          onConnect={connectDevice}
+          title="AI 配置 - 设备未连接"
+          protocolError={protocolError}
+          permissionRequired={permissionRequired}
+          onGrantPermission={grantPermission}
+        />
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout>
+      <div className="max-w-4xl mx-auto py-12 px-4 space-y-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-blue-400 font-black uppercase tracking-widest text-xs">
+              <Cpu className="w-4 h-4" />
+              <span>AI Engine Configuration</span>
+            </div>
+            <h1 className="text-5xl font-black text-white tracking-tighter">AI 配置</h1>
+            <p className="text-neutral-400 text-lg max-w-xl">
+              配置智能音箱的 AI 引擎。支持 OpenAI 协议兼容的所有大模型。（Gemini暂不支持）
+            </p>
+          </div>
+
+          {/* AI Toggle */}
+          <div className="flex items-center gap-4 bg-neutral-900/50 p-6 rounded-[32px] border border-neutral-800 backdrop-blur-xl">
+            <div className="space-y-0.5">
+              <div className="text-sm font-bold text-white uppercase tracking-wider">AI 功能状态</div>
+              <div className="text-[10px] text-neutral-500 font-medium uppercase tracking-widest">
+                {enabled ? '已启用 - 随时响应' : '已禁用 - 仅本地响应'}
+              </div>
+            </div>
+            <button
+              onClick={() => setEnabled(!enabled)}
+              className={`relative w-16 h-8 rounded-full transition-all duration-500 p-1 flex items-center ${enabled ? 'bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-neutral-700'}`}
+            >
+              <div className={`w-6 h-6 bg-white rounded-full shadow-lg transition-all duration-500 transform ${enabled ? 'translate-x-8' : 'translate-x-0'}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Form */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl">
+              <CardHeader className="p-8 pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-blue-400" />
+                      接口配置
+                    </CardTitle>
+                    <CardDescription className="text-neutral-500">
+                      配置 AI 提供商及身份验证信息
+                    </CardDescription>
+                  </div>
+                  {/* Bridge Info Badge */}
+                  <div className="hidden sm:flex flex-col items-end">
+                    <div className="text-[8px] text-neutral-600 font-black uppercase tracking-widest mb-1">Bridge Endpoint</div>
+                    <div className="px-3 py-1 bg-neutral-950 border border-neutral-800 rounded-full text-[10px] font-mono text-neutral-500">
+                      https://r1-py.thd.dpdns.org
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-8 pt-4 space-y-6">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="choice" className="text-xs font-black uppercase tracking-widest text-neutral-400">服务商协议</Label>
+                      <Select value={formData.choice} onValueChange={(val) => handleChange('choice', val)}>
+                        <SelectTrigger id="choice" className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white">
+                          <SelectValue placeholder="选择协议" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+                          <SelectItem value="OpenAi">OpenAI Compatible</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="model" className="text-xs font-black uppercase tracking-widest text-neutral-400">模型标识 (Model)</Label>
+                      <Input
+                        id="model"
+                        placeholder="Qwen/Qwen3-8B"
+                        value={formData.model}
+                        onChange={(e) => handleChange('model', e.target.value)}
+                        className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="aiType" className="text-xs font-black uppercase tracking-widest text-neutral-400">AI 模式</Label>
+                    <Select value={formData.aiType} onValueChange={(val) => handleChange('aiType', val)}>
+                      <SelectTrigger id="aiType" className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white">
+                        <SelectValue placeholder="选择模式" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-neutral-900 border-neutral-800 text-white rounded-2xl">
+                        <SelectItem value="0">网络模式</SelectItem>
+                        <SelectItem value="1">本地模式</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {formData.aiType === '0' ? (
+                      <p className="text-xs text-neutral-500 leading-relaxed">自带 CDN 加速，只能与公网服务交互。如需使用 HomeAssistant 等局域网服务，需将其穿透至公网。</p>
+                    ) : (
+                      <p className="text-xs text-neutral-500 leading-relaxed">支持局域网服务（HomeAssistant 等），可自定义 CDN 加速地址。局域网服务无需暴露至公网。</p>
+                    )}
+                  </div>
+
+                  {formData.aiType === '1' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="cdn" className="text-xs font-black uppercase tracking-widest text-neutral-400">AI 加速 (CDN)</Label>
+                      <Input
+                        id="cdn"
+                        placeholder="防止ai被墙"
+                        value={formData.cdn}
+                        onChange={(e) => handleChange('cdn', e.target.value)}
+                        className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+                      />
+                      <p className="text-xs text-neutral-600 mt-1">可用加速：<button type="button" onClick={() => handleChange('cdn', 'https://r1-py.thd.dpdns.org')} className="text-blue-400 font-mono hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer">https://r1-py.thd.dpdns.org</button></p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endpoint" className="text-xs font-black uppercase tracking-widest text-neutral-400">接口地址 (Endpoint)</Label>
+                    <Input
+                      id="endpoint"
+                      placeholder="https://api.openai.com/v1"
+                      value={formData.endpoint}
+                      onChange={(e) => handleChange('endpoint', e.target.value)}
+                      className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="key" className="text-xs font-black uppercase tracking-widest text-neutral-400">API 秘钥 (Key)</Label>
+                    <Input
+                      id="key"
+                      type="password"
+                      placeholder="ai平台密钥"
+                      value={formData.key}
+                      onChange={(e) => handleChange('key', e.target.value)}
+                      className="bg-neutral-950 border-neutral-800 rounded-2xl h-12 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="systemPrompt" className="text-xs font-black uppercase tracking-widest text-neutral-400">系统提示词 (System Prompt)</Label>
+                    <Textarea
+                      id="systemPrompt"
+                      placeholder="你是一个智能音箱助理..."
+                      value={formData.systemPrompt}
+                      onChange={(e) => handleChange('systemPrompt', e.target.value)}
+                      className="bg-neutral-950 border-neutral-800 rounded-2xl min-h-[100px] text-white resize-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="extraBody" className="text-xs font-black uppercase tracking-widest text-neutral-400">附加请求体 (JSON)</Label>
+                    <Textarea
+                      id="extraBody"
+                      placeholder='{"enable_thinking":true, "temperature":0.7}'
+                      value={formData.extraBody}
+                      onChange={(e) => handleChange('extraBody', e.target.value)}
+                      className="bg-neutral-950 border-neutral-800 rounded-2xl min-h-[80px] text-white font-mono text-xs"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Action Sidebar */}
+          <div className="space-y-6">
+            <Card className="bg-neutral-900/40 border-neutral-800 rounded-[40px] overflow-hidden backdrop-blur-2xl shadow-2xl sticky top-8">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  操作面板
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 pt-4 space-y-6">
+                <div className="space-y-4">
+                  <Button
+                    variant="outline"
+                    className={`w-full h-16 rounded-3xl font-black text-sm uppercase tracking-widest transition-all ${isTesting ? 'opacity-50' : isLan ? 'opacity-40 cursor-not-allowed border-neutral-700 text-neutral-500' : 'hover:bg-neutral-800'}`}
+                    onClick={handleTest}
+                    disabled={isTesting || isLan}
+                  >
+                    {isTesting ? (
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="w-5 h-5 mr-2" />
+                    )}
+                    测试连接
+                  </Button>
+
+                  <Button
+                    className={`w-full h-16 rounded-3xl font-black text-sm uppercase tracking-widest transition-all bg-blue-500 hover:bg-blue-600 shadow-[0_10px_30px_rgba(59,130,246,0.3)]`}
+                    disabled={isSaved || isTesting}
+                    onClick={handleSave}
+                  >
+                    {isSaved ? (
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                    ) : (
+                      <Save className="w-5 h-5 mr-2" />
+                    )}
+                    {isSaved ? '已保存' : '保存配置'}
+                  </Button>
+                </div>
+
+                {/* Status Messages */}
+                <div className="space-y-4 pt-4 border-t border-neutral-800">
+                  {isLan ? (
+                    <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold flex gap-3">
+                      <AlertCircle className="w-5 h-5 shrink-0" />
+                      <div className="space-y-2 leading-relaxed">
+                        <p>局域网端点无法从浏览器端验证，请自行确认 AI 服务可用性后直接保存。</p>
+                        <pre className="text-[10px] text-amber-500/70 font-mono whitespace-pre-wrap break-all bg-amber-950/20 p-3 rounded-2xl border border-amber-500/10">{curlCommand}</pre>
+                      </div>
+                    </div>
+                  ) : testResult ? (
+                    <div className={`p-4 rounded-3xl text-xs font-bold flex gap-3 ${testResult.success ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+                      {testResult.success ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+                      <span className="leading-relaxed">{testResult.message}</span>
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 text-neutral-400 text-[10px] leading-loose">
+                      <div className="flex items-center gap-2 text-blue-400 font-bold mb-2">
+                        <Info className="w-3 h-3" />
+                        <div>测试说明</div>
+                      </div>
+                      测试将模拟 AI 对话并验证是否能正确触发 <code className="text-blue-300 font-mono">get_current_temperature</code> 函数调用。
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </PageLayout>
+  );
+}
